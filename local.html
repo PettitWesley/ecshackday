@@ -2,14 +2,14 @@
 <html>
 	<head>
 		<title>Elasticsearch + Angular Example</title>
-		<link rel="stylesheet" type="text/css" href="bootstrap.css">
+		<link rel="stylesheet" type="text/css" href="node_modules/bootstrap/dist/css/bootstrap.css">
 
 		<script src="words.js"></script>
 	</head>
 	<!-- boot angular with the ExampleApp module -->
 	<body ng-app="ExampleApp">
 		<!-- attach the ExampleController to our main content -->
-		<div ng-controller="ExampleController" class="container" style="width: 80%">
+		<div ng-controller="ExampleController" class="container">
 			<h1>Angular + Elasticsearch</h1>
 
 			<!-- if there is an error, display its message -->
@@ -22,8 +22,8 @@
 				<div class="panel-heading">
 					<h3 class="panel-title">Search</h3>
 				</div>
-				<div class="panel-body" >
-					<input type="text" ng-change="searchAsYouType()" ng-keypress="searchIt($event)" ng-model="search" />
+				<div class="panel-body">
+					<input type="text" ng-keypress="searchIt($event)" ng-model="search" />
 					<select class="selectpicker" ng-change="model()" ng-model="selectedModel" ng-options="x for x in models"></select>
 					<select class="selectpicker" ng-show="selectedModel !== 'All'" ng-change="filter()" ng-model="selectedFilter" ng-options="x for x in filters"></select>
 					<br />
@@ -121,7 +121,7 @@
 			</div>
 		</div>
 
-		<div ng-controller="CreateController" class="container" style="width: 80%">
+		<div ng-controller="CreateController" class="container">
 			<h1>Create Stuff</h1>
 
 			<div ng-if="error" class="alert alert-danger" role="alert">
@@ -145,14 +145,14 @@
 			</div>
 		</div>
 		<!-- include npm modules in proper order -->
-		<script src="angular.min.js"></script>
-		<script src="elasticsearch.angular.min.js"></script>
+		<script src="node_modules/angular/angular.min.js"></script>
+		<script src="node_modules/elasticsearch-browser/elasticsearch.angular.min.js"></script>
 
-		<script src="jquery.min.js"></script>
+		<script src="node_modules/jquery/dist/jquery.js"></script>
 
-		<script src="bootstrap.min.js"></script>
+		<script src="node_modules/bootstrap/dist/js/bootstrap.js"></script>
 
-		<script src="ui-bootstrap-tpls.js"></script>
+		<script src="node_modules/angular-ui-bootstrap/dist/ui-bootstrap-tpls.js"></script>
 
 		<!-- app code starts is here -->
 
@@ -170,7 +170,7 @@
 			// into a service so that it can be required by other parts of the application
 			ExampleApp.service('client', function(esFactory) {
 				return esFactory({
-					host : 'search-wesleydemo-mspzaplqc4n4qyedvqgzp7iwia.us-west-2.es.amazonaws.com',
+					host : 'localhost:9200',
 					apiVersion : '2.3',
 					log : 'trace'
 				});
@@ -199,32 +199,24 @@
 				$scope.searchIt = function(keyEvent) {
 					if (keyEvent.which === 13) {
 						if ($scope.selectedModel !== 'All' && $scope.selectedFilter != undefined) {
-							$scope.searches.push($scope.selectedFilter + ":" + String($scope.search));
+							$scope.searches.push($scope.selectedFilter + ":" + $scope.search);
 							$scope.search = "";
 
-							searchES($scope.selectedModel, $scope.searches, true);
+							clearResults();
+							searchES($scope.selectedModel, $scope.searches);
 						} else if ($scope.selectedModel !== 'All') {
-							$scope.globalSearches.push($scope.selectedModel + ":" + String($scope.search));
+							$scope.globalSearches.push($scope.selectedModel + ":" + $scope.search);
 							$scope.search = "";
 
-							searchGlobal(true);
+							clearResults();
+							searchGlobal();
 						} else {
-							$scope.globalSearches.push(String($scope.search));
+							$scope.globalSearches.push($scope.search);
 							$scope.search = "";
 
-							searchGlobal(true);
+							clearResults();
+							searchGlobal();
 						}
-					}
-				}
-
-				$scope.searchAsYouType = function() {
-					console.log("searchAsYouType");
-					if ($scope.selectedModel !== 'All' && $scope.selectedFilter != undefined) {
-						var new_search = $scope.selectedFilter + ":" + String($scope.search);
-
-						var filters = $scope.searches.concat(new_search);
-
-						searchES($scope.selectedModel, filters, true);
 					}
 				}
 				var filter_option_to_query = {
@@ -239,26 +231,19 @@
 					"task_definition" : "task_definition"
 				}
 
-				function clearResults(modelType) {
-					console.log("clearing");
-					if (modelType) {
-						console.log("clearing "+modelType);
-						$scope.results[modelType+"s"] = [];
-					} else {
-						$scope.results = {
-							services : [],
-							instances : [],
-							tasks : [],
-							task_definitions : []
-						}
+				function clearResults() {
+					$scope.results = {
+						services : [],
+						instances : [],
+						tasks : [],
+						task_definitions : []
 					}
-
 				}
 
 				clearResults();
 				//initilize
 
-				function searchGlobal(clear) {
+				function searchGlobal() {
 					var searches = []
 					$scope.globalSearches.forEach(function(val) {
 						if (val.contains(":")) {
@@ -271,75 +256,68 @@
 					console.log("search terms:");
 					console.log(searches);
 					var queries = [];
-
+					
 					if ($scope.selectedModel === 'All') {
 						queries = prepareQueries("Service", searches);
 						queries = queries.concat($scope.searches);
 						console.log(queries);
-						searchES("Service", queries, clear);
-
+						searchES("Service", queries);
+						
 						queries = prepareQueries("Task", searches);
 						queries = queries.concat($scope.searches);
 						console.log(queries);
-						searchES("Task", queries, clear);
-
+						searchES("Task", queries);
+						
 						queries = prepareQueries("Instance", searches);
 						queries = queries.concat($scope.searches);
 						console.log(queries);
-						searchES("Instance", queries, clear);
-
+						searchES("Instance", queries);
+						
 						queries = prepareQueries("Task Definition", searches);
 						queries = queries.concat($scope.searches);
 						console.log(queries);
-						searchES("Task Definition", queries, clear);
-
+						searchES("Task Definition", queries);
+					
 					} else {
 						queries = prepareQueries($scope.selectedModel, searches);
 						queries = queries.concat($scope.searches);
-
+						
 						console.log(queries);
-						searchES($scope.selectedModel, queries, clear);
+						searchES($scope.selectedModel, queries);
 					}
+					
 
 				}
-
+				
 				function prepareQueries(modelType, queries) {
 					var matches = [];
-
+					
 					function helper(queries, fields) {
 						var matches = [];
-						queries.forEach(function(val) {
-							fields.forEach(function(field) {
-								//not sure why I need to do this here, but not elsewhere
-								if (field === 'revision') {
-									var v = parseInt(val);
-									if (v) {
-										matches.push(field + ":" + val);
-									}
-								} else {
-									matches.push(field + ":" + val);
-								}
-								
+						queries.forEach(function (val) {
+							fields.forEach(function (field) {
+								matches.push(field+":"+val);
 							});
 						});
 						return matches;
 					}
-
+					
 					if (modelType === "Service") {
-						matches = helper(queries, ["ID", "name"]);
+						matches = helper(queries, ["ID", "name"]);	
 					} else if (modelType === "Instance") {
-						matches = helper(queries, ["ID", "EC2_ID"]);
+						matches = helper(queries, ["ID", "EC2_ID"]);	
 					} else if (modelType === "Task Definition") {
 						matches = helper(queries, ["family", "revision"]);
 					} else if (modelType === "Task") {
 						matches = helper(queries, ["ID", "task_definition"]);
 					}
-
+					
 					return matches;
-
+					
+					
 				}
 
-				function searchES(modelOption, filters, clear) {
+				function searchES(modelOption, filters) {
 					var models = {
 						Service : "service",
 						Instance : "instance",
@@ -353,7 +331,7 @@
 						filters.forEach(function(val) {
 							var pieces = val.split(":");
 							var match = {
-								term : {}
+								match : {}
 							};
 
 							var val;
@@ -363,30 +341,21 @@
 								val = pieces[0];
 							}
 
-							
-							match.term[val] = pieces[1];
+							match.match[val] = pieces[1];
 							matches.push(match);
 						});
-						
-						var body =  {
-							filter : {
-								bool : {
-									should : matches
-								}
-							}
-						}
-						
-						console.log(body);
 
 						client.search({
-							index : "prod",
+							index : "test_index6",
 							type : model,
-							body : body
-						}).then(function(resp) {
-
-							if (clear && resp.hits.hits.length > 0) {
-								clearResults(model);
+							body : {
+								query : {
+									bool : {
+										should : matches
+									}
+								}
 							}
+						}).then(function(resp) {
 							console.log(resp);
 							resp.hits.hits.forEach(function(val) {
 								if (val._type == 'instance') {
@@ -425,7 +394,8 @@
 						if ($scope.searches.length == 0) {
 							clearResults();
 						} else {
-							searchES($scope.selectedModel, $scope.searches, true);
+							clearResults();
+							searchES($scope.selectedModel, $scope.searches);
 						}
 					}
 				}
@@ -438,8 +408,8 @@
 						if ($scope.globalSearches.length == 0) {
 							clearResults();
 						} else {
-
-							searchGlobal(true);
+							clearResults();
+							searchGlobal();
 						}
 					}
 				}
@@ -476,20 +446,17 @@
 						var index = $scope.globalSearches.indexOf(val);
 						$scope.globalSearches.splice(index, 1);
 					});
-
+					
 					if ($scope.selectedFilter === undefined) {
 						// the modelType has changed
 						clearResults();
-
-						if ($scope.globalSearches.length > 0 || $scope.searches.length > 0) {
-							searchGlobal();
-						}
+						searchGlobal();
 					}
 				}
 			});
 
 			ExampleApp.controller('CreateController', function($scope, client, esFactory) {
-				var index = 'prod';
+				var index = 'test_index6';
 
 				function createTaskDefinition(ID, family, revision, accountID, status, jsonBlob, containers) {
 					console.log(arguments);
@@ -590,8 +557,7 @@
 				}
 
 				function getWord(i) {
-					var word = window.words[i % 999];
-					console.log(word.trim());
+					var word = window.words[i % 399];
 					return word.trim();
 				}
 
@@ -632,8 +598,6 @@
 						// // Create Some Task Definitions
 
 						var i = Math.floor(Math.random() * (new Date()).getTime() % 1111);
-						i = i*Math.floor(Math.random() * 997);
-						console.log(i);
 						console.log("___");
 						console.log(i);
 						console.log(getWord(i));
@@ -652,7 +616,7 @@
 
 						// Create some services
 
-						createService(generateUUID(), getWord(i) + capFirst(getWord(i * i)), clusters[i % 4], flipflop, i, getWord(i*2) + capFirst(getWord(i * i*3)) + ":" + (i % 10), accountID);
+						createService(generateUUID(), getWord(i) + capFirst(getWord(i * i)), clusters[i % 4], flipflop, i, getWord(i) + capFirst(getWord(i * i)) + ":" + (i % 10), accountID);
 
 						//  create a ton of tasks
 
